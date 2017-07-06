@@ -1,11 +1,51 @@
 package treekeys
 
 import (
+	"fmt"
 	"testing"
+	"time"
 )
 
+func TestPerformance(t *testing.T) {
+	for _, logNPeers := range []uint{2, 3, 7, 10, 15, 17} {
+		nPeers := (1 << logNPeers) - 1
+
+		peers := make([]*Endpoint, nPeers)
+		for i := range peers {
+			peers[i] = NewEndpoint()
+		}
+
+		// Peer 0 initiates to the rest of the peers
+		beforeSetup := time.Now()
+		π0, sm := peers[0].SetupGroup(peers[1:])
+		afterSetup := time.Now()
+
+		// Have peer 1 accept the setup message
+		beforeProcessSetup := time.Now()
+		π1 := peers[1].ProcessSetupMessage(sm[0])
+		afterProcessSetup := time.Now()
+
+		// Have peer 0 update its key
+		beforeUpdate := time.Now()
+		um := π0.UpdateKey()
+		afterUpdate := time.Now()
+
+		// Have peer 1 accept the update message
+		beforeProcessUpdate := time.Now()
+		π1.ProcessUpdateMessage(um)
+		afterProcessUpdate := time.Now()
+
+		fmt.Printf("%7d %7d %7d %7d %7d\n",
+			nPeers,
+			afterSetup.Sub(beforeSetup)/time.Millisecond,
+			afterProcessSetup.Sub(beforeProcessSetup)/time.Millisecond,
+			afterUpdate.Sub(beforeUpdate)/time.Millisecond,
+			afterProcessUpdate.Sub(beforeProcessUpdate)/time.Millisecond)
+	}
+}
+
 func TestProtoSetup(t *testing.T) {
-	nPeers := 15
+	nPeers := 2
 
 	peers := make([]*Endpoint, nPeers)
 	for i := range peers {

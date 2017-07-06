@@ -38,8 +38,8 @@ func TestTreeAndPath(t *testing.T) {
 		}
 
 		tree := CreateTree(λ)
-		if tree.Size() != nPeers {
-			t.Fatalf("Wrong tree size [%d] != [%d]", tree.Size(), nPeers)
+		if tree.Size != nPeers {
+			t.Fatalf("Wrong tree size [%d] != [%d]", tree.Size, nPeers)
 		}
 
 		for i := range λ {
