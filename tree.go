@@ -50,6 +50,7 @@ func CreateTree(λ []PrivateKey) *TreeNode {
 }
 
 func Copath(T *TreeNode, i int) []GroupElement {
+	// XXX Stop condition not listed in paper
 	if T.IsLeaf() {
 		return []GroupElement{}
 	}

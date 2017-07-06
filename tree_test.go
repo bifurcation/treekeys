@@ -1,7 +1,6 @@
 package treekeys
 
 import (
-	"fmt"
 	"testing"
 )
 

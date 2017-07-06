@@ -14,6 +14,8 @@ func pow2(n int) int {
 	return m >> 1
 }
 
+// XXX: This could just be the identity function, but let's add some hashing
+// just to keep things interesting
 func ι(element GroupElement) (priv PrivateKey) {
 	h := sha256.New()
 	h.Write(element[:])
@@ -33,5 +35,28 @@ func Exp(pub GroupElement, priv PrivateKey) (out GroupElement) {
 
 func DHKeyGen() (priv PrivateKey) {
 	rand.Read(priv[:])
+	return
+}
+
+func KeyExchangeKeyGen() PrivateKey {
+	return DHKeyGen()
+}
+
+// XXX: Assuming something 3DH-like
+func KeyExchange(originator bool, ikA PrivateKey, IKB GroupElement, ekA PrivateKey, EKB GroupElement) (priv PrivateKey) {
+	iAB := Exp(EKB, ikA)
+	iBA := Exp(IKB, ekA)
+	eAB := Exp(EKB, ekA)
+
+	if !originator {
+		iAB, iBA = iBA, iAB
+	}
+
+	// XXX: Should use a proper KDF
+	h := sha256.New()
+	h.Write(iAB[:])
+	h.Write(iBA[:])
+	h.Write(eAB[:])
+	copy(priv[:], h.Sum(nil))
 	return
 }

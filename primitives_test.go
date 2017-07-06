@@ -24,3 +24,16 @@ func TestDH(t *testing.T) {
 		t.Fatalf("gABC != gBAC")
 	}
 }
+
+func TestKeyExchange(t *testing.T) {
+	ikA := KeyExchangeKeyGen()
+	ekA := KeyExchangeKeyGen()
+	ikB := KeyExchangeKeyGen()
+	ekB := KeyExchangeKeyGen()
+
+	gAB := KeyExchange(true, ikA, PK(ikB), ekA, PK(ekB))
+	gBA := KeyExchange(false, ikB, PK(ikA), ekB, PK(ekA))
+	if gAB != gBA {
+		t.Fatalf("gAB != gBA")
+	}
+}
