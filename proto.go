@@ -38,6 +38,7 @@ type GroupState struct {
 	ID []GroupElement
 	P  []GroupElement
 	tk PrivateKey
+	sk PrivateKey
 }
 
 type SetupMessage struct {
@@ -73,7 +74,7 @@ func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []SetupMessage) {
 	m := make([]SetupMessage, nPeers)
 	for i := range peers {
 		m[i] = SetupMessage{
-			i:  i,
+			i:  i + 1,
 			ID: π.ID,
 			EK: EK[i],
 			Ks: PK(ks),
@@ -84,6 +85,10 @@ func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []SetupMessage) {
 
 	π.tk = T.Value
 	π.P = Copath(T, 0)
+
+	// XXX How should π.sk be initialized on group creation?  This just assumes
+	// it is set to the all-zero vector, and combined with the π.sk immediately.
+	π.DeriveStageKey()
 
 	return π, m
 }
@@ -107,16 +112,82 @@ func (e *Endpoint) ProcessSetupMessage(msg SetupMessage) *GroupState {
 	π.λ = ι(PK(KeyExchange(false, π.ik, msg.ID[0], ek, msg.Ks)))
 	nks := PathNodeKeys(π.λ, π.P)
 	π.tk = nks[0]
+
+	// XXX How should π.sk be initialized on group creation?  This just assumes
+	// it is set to the all-zero vector, and combined with the π.sk immediately.
+	π.DeriveStageKey()
+
 	return π
 }
 
-/*
 type UpdateMessage struct {
 	j int
-	U GroupElement
+	U []GroupElement
 }
 
 func (π *GroupState) UpdateKey() UpdateMessage {
+	π.λ = DHKeyGen()
+	nks := PathNodeKeys(π.λ, π.P)
 
+	// XXX Not computing MAC because it will never be verified
+	// XXX π.sk is used as the MAC key but never computed
+	m := UpdateMessage{
+		j: π.i,
+		U: make([]GroupElement, len(π.P)),
+	}
+	for i, nk := range nks {
+		if i == 0 {
+			continue
+		}
+
+		m.U[i-1] = PK(nk)
+	}
+
+	π.tk = nks[0]
+
+	// XXX Assuming this happens every time the tree key changes?
+	π.DeriveStageKey()
+
+	return m
 }
-*/
+
+// XXX This is completely upside-down compared to the paper.  I think the paper
+// is just wrong here; it acts as if the node-key and copath list were ordered
+// starting from the leaves.  They actually start from the root, so we need to
+// count down from the root, instead of starting with the height and
+// decrementing to the right place.
+func IndexToUpdate(h, d, i, j int) int {
+	pow2h1 := (1 << (uint(h-d) - 1))
+
+	switch {
+	case (i < pow2h1) && (j < pow2h1):
+		return IndexToUpdate(h, d+1, i, j)
+	case (i >= pow2h1) && (j >= pow2h1):
+		return IndexToUpdate(h, d+1, i-pow2h1, j-pow2h1)
+	}
+
+	return d
+}
+
+func (π *GroupState) ProcessUpdateMessage(msg UpdateMessage) {
+	h := ceillog2(len(π.ID))
+	d := IndexToUpdate(h, 0, π.i, msg.j)
+
+	π.P[d] = msg.U[d]
+	nks := PathNodeKeys(π.λ, π.P)
+	π.tk = nks[0]
+
+	// XXX Assuming this happens every time the tree key changes?
+	π.DeriveStageKey()
+
+	return
+}
+
+func (π *GroupState) DeriveStageKey() {
+	idBytes := []byte{}
+	for _, id := range π.ID {
+		idBytes = append(idBytes, id[:]...)
+	}
+
+	π.sk = KDF(π.sk[:], π.tk[:], idBytes)
+}

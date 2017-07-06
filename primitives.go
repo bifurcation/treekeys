@@ -6,6 +6,14 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
+func ceillog2(n int) int {
+	l := 0
+	for n > (1 << uint(l)) {
+		l += 1
+	}
+	return l
+}
+
 func pow2(n int) int {
 	m := 1
 	for m < n {
@@ -14,13 +22,20 @@ func pow2(n int) int {
 	return m >> 1
 }
 
+// TODO: Use a real KDF and/or structure inputs better
+func KDF(vals ...[]byte) (out PrivateKey) {
+	h := sha256.New()
+	for _, val := range vals {
+		h.Write(val[:])
+	}
+	h.Sum(out[:])
+	return
+}
+
 // XXX: This could just be the identity function, but let's add some hashing
 // just to keep things interesting
-func ι(element GroupElement) (priv PrivateKey) {
-	h := sha256.New()
-	h.Write(element[:])
-	copy(priv[:], h.Sum(nil))
-	return
+func ι(element GroupElement) PrivateKey {
+	return KDF(element[:])
 }
 
 func PK(priv PrivateKey) (pub GroupElement) {
@@ -43,7 +58,7 @@ func KeyExchangeKeyGen() PrivateKey {
 }
 
 // XXX: Assuming something 3DH-like
-func KeyExchange(originator bool, ikA PrivateKey, IKB GroupElement, ekA PrivateKey, EKB GroupElement) (priv PrivateKey) {
+func KeyExchange(originator bool, ikA PrivateKey, IKB GroupElement, ekA PrivateKey, EKB GroupElement) PrivateKey {
 	iAB := Exp(EKB, ikA)
 	iBA := Exp(IKB, ekA)
 	eAB := Exp(EKB, ekA)
@@ -52,11 +67,5 @@ func KeyExchange(originator bool, ikA PrivateKey, IKB GroupElement, ekA PrivateK
 		iAB, iBA = iBA, iAB
 	}
 
-	// XXX: Should use a proper KDF
-	h := sha256.New()
-	h.Write(iAB[:])
-	h.Write(iBA[:])
-	h.Write(eAB[:])
-	copy(priv[:], h.Sum(nil))
-	return
+	return KDF(iAB[:], iBA[:], eAB[:])
 }
