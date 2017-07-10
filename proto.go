@@ -1,5 +1,10 @@
 package treekeys
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 type Endpoint struct {
 	identityKey PrivateKey
 	preKeys     map[GroupElement]PrivateKey
@@ -31,6 +36,60 @@ func (e Endpoint) Identity() GroupElement {
 
 /////
 
+type SetupMessage struct {
+	i  int
+	ID []GroupElement
+	EK GroupElement
+	Ks GroupElement
+	P  []GroupElement
+}
+
+type UpdateMessage struct {
+	j int
+	U []GroupElement
+}
+
+type MACMessage struct {
+	// XXX Should probably have an indicator of message type that is covered by the MAC
+	Message []byte
+	MAC     []byte
+}
+
+func NewMACMessage(key []byte, msg interface{}) (*MACMessage, error) {
+	var err error
+	macmsg := &MACMessage{}
+
+	macmsg.Message, err = json.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	macmsg.MAC = MAC(key[:], macmsg.Message)
+	return macmsg, nil
+}
+
+func (macmsg MACMessage) ToSetupMessage(key []byte) (*SetupMessage, error) {
+	if !VerifyMAC(key, macmsg.Message, macmsg.MAC) {
+		return nil, fmt.Errorf("MAC verify failure [setup]")
+	}
+
+	var msg SetupMessage
+	err := json.Unmarshal(macmsg.Message, &msg)
+	return &msg, err
+}
+
+func (macmsg MACMessage) ToUpdateMessage(key []byte) (*UpdateMessage, error) {
+	if !VerifyMAC(key, macmsg.Message, macmsg.MAC) {
+		return nil, fmt.Errorf("MAC verify failure [update]")
+	}
+
+	var msg UpdateMessage
+	err := json.Unmarshal(macmsg.Message, &msg)
+	return &msg, err
+}
+
+/////
+
 type GroupState struct {
 	i  int
 	ik PrivateKey
@@ -39,14 +98,6 @@ type GroupState struct {
 	P  []GroupElement
 	tk PrivateKey
 	sk PrivateKey
-}
-
-type SetupMessage struct {
-	i  int
-	ID []GroupElement
-	EK GroupElement
-	Ks GroupElement
-	P  []GroupElement
 }
 
 func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []SetupMessage) {
@@ -118,11 +169,6 @@ func (e *Endpoint) ProcessSetupMessage(msg SetupMessage) *GroupState {
 	π.DeriveStageKey()
 
 	return π
-}
-
-type UpdateMessage struct {
-	j int
-	U []GroupElement
 }
 
 func (π *GroupState) UpdateKey() UpdateMessage {

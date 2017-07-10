@@ -1,8 +1,11 @@
 package treekeys
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -20,6 +23,40 @@ func pow2(n int) int {
 		m <<= 1
 	}
 	return m >> 1
+}
+
+type PrivateKey [32]byte
+
+type GroupElement [32]byte
+
+func (g GroupElement) MarshalJSON() ([]byte, error) {
+	return json.Marshal(base64.RawURLEncoding.EncodeToString(g[:]))
+}
+
+func (g *GroupElement) UnmarshalJSON(data []byte) error {
+	var str string
+	err := json.Unmarshal(data, &str)
+	if err != nil {
+		return err
+	}
+
+	buf, err := base64.RawURLEncoding.DecodeString(str)
+	if err != nil {
+		return err
+	}
+
+	copy((*g)[:], buf)
+	return nil
+}
+
+func MAC(key, message []byte) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write(message)
+	return h.Sum(nil)
+}
+
+func VerifyMAC(key, message, mac []byte) bool {
+	return hmac.Equal(MAC(key, message), mac)
 }
 
 // TODO: Use a real KDF and/or structure inputs better
