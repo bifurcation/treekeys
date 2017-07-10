@@ -58,7 +58,7 @@ func TestProtoMAC(t *testing.T) {
 		t.Fatalf("Setup MAC", err)
 	}
 
-	smsm, err := msm.ToSetupMessage(key)
+	smsm, err := msm.ToSetupMessage()
 	if err != nil {
 		t.Fatalf("Setup Verify", err)
 	}
@@ -74,7 +74,7 @@ func TestProtoMAC(t *testing.T) {
 		t.Fatalf("Setup MAC", err)
 	}
 
-	umum, err := mum.ToUpdateMessage(key)
+	umum, err := mum.ToUpdateMessage()
 	if err != nil {
 		t.Fatalf("Setup Verify", err)
 	}
@@ -122,7 +122,7 @@ func TestProtoUpdate(t *testing.T) {
 
 	// Setup
 	π := make([]*GroupState, nPeers)
-	var sm []SetupMessage
+	var sm []*MACMessage
 	π[0], sm = peers[0].SetupGroup(peers[1:])
 	for i := range peers {
 		if i == 0 {
