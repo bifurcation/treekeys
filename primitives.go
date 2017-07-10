@@ -17,6 +17,13 @@ func ceillog2(n int) int {
 	return l
 }
 
+func isPow2(n int) bool {
+	for n&0x01 == 0 {
+		n >>= 1
+	}
+	return n == 0x01
+}
+
 func pow2(n int) int {
 	m := 1
 	for m < n {

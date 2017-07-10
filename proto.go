@@ -42,11 +42,16 @@ type SetupMessage struct {
 	EK GroupElement
 	Ks GroupElement
 	P  []GroupElement
+	F  Frontier
 }
 
 type UpdateMessage struct {
 	J int
 	U []GroupElement
+}
+
+type AddMessage struct {
+	F Frontier
 }
 
 type MACMessage struct {
@@ -94,6 +99,7 @@ type GroupState struct {
 	P  []GroupElement
 	tk PrivateKey
 	sk PrivateKey
+	F  Frontier
 }
 
 func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []*MACMessage) {
@@ -118,6 +124,8 @@ func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []*MACMessage) {
 	T := CreateTree(append([]PrivateKey{π.λ}, λ...))
 	π.ID = append([]GroupElement{PK(π.ik)}, IK...)
 
+	π.F = T.Frontier()
+
 	m := make([]*MACMessage, nPeers)
 	for i := range peers {
 		sm := SetupMessage{
@@ -126,6 +134,7 @@ func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []*MACMessage) {
 			EK: EK[i],
 			Ks: PK(ks),
 			P:  Copath(T, i+1),
+			F:  π.F,
 		}
 
 		// XXX Ignoring error
@@ -255,4 +264,16 @@ func (π *GroupState) DeriveStageKey() {
 	}
 
 	π.sk = KDF(π.sk[:], π.tk[:], idBytes)
+}
+
+func (π *GroupState) AddPeer(ID GroupElement) (SetupMessage, []AddMessage) {
+	// TODO
+	// Compute updated frontier
+	return SetupMessage{}, nil
+}
+
+func (π *GroupState) ProcessAddMessage(msg AddMessage) {
+	// TODO
+	// Store updated frontier
+	return
 }

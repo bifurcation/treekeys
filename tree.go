@@ -1,13 +1,5 @@
 package treekeys
 
-// Still need:
-// * DHKeyGen
-// * KeyExchangeKeyGen
-// * KeyExchange
-// * MAC
-
-// Tree Management functions
-
 type TreeNode struct {
 	Left  *TreeNode
 	Right *TreeNode
@@ -52,6 +44,56 @@ func Copath(T *TreeNode, i int) []GroupElement {
 	}
 
 	return append([]GroupElement{key}, remainder...)
+}
+
+type FrontierEntry struct {
+	SubtreeSize int
+	Value       GroupElement
+}
+
+type Frontier []FrontierEntry
+
+func (f *Frontier) Add(λ PrivateKey) {
+	// Append to frontier
+	priv := λ
+	val := PK(priv)
+
+	*f = append(*f, FrontierEntry{1, val})
+
+	// Compact
+	if len(*f) < 2 {
+		return
+	}
+
+	n := len(*f)
+	for n > 1 {
+		last := (*f)[n-1]
+		nextToLast := (*f)[n-2]
+
+		if last.SubtreeSize != nextToLast.SubtreeSize {
+			break
+		}
+
+		n -= 1
+		priv := ι(Exp(nextToLast.Value, priv))
+		val := PK(priv)
+
+		(*f)[n-1] = FrontierEntry{
+			SubtreeSize: last.SubtreeSize + nextToLast.SubtreeSize,
+			Value:       val,
+		}
+	}
+
+	(*f) = (*f)[:n]
+}
+
+func (T *TreeNode) Frontier() Frontier {
+	if T.IsLeaf() || isPow2(T.Size) {
+		return Frontier{FrontierEntry{T.Size, PK(T.Value)}}
+	}
+
+	f := Frontier{FrontierEntry{T.Left.Size, PK(T.Left.Value)}}
+	return append(f, T.Right.Frontier()...)
 }
 
 func PathNodeKeys(λ PrivateKey, P []GroupElement) []PrivateKey {

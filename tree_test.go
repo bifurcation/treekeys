@@ -1,6 +1,8 @@
 package treekeys
 
 import (
+	//"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -26,17 +28,26 @@ func printTree(t *TreeNode, depth int) {
 		printTree(t.Right, depth+1)
 	}
 }
+
+func printFrontier(f Frontier) {
+	fmt.Printf("=====\n")
+	for i, entry := range f {
+		fmt.Printf("  %3d %3d %x\n", i, entry.SubtreeSize, trunc(entry.Value))
+	}
+}
 */
 
 func TestTreeAndPath(t *testing.T) {
 	maxPeers := 17
+	Λ := make([]PrivateKey, maxPeers)
+	for i := range Λ {
+		Λ[i] = DHKeyGen()
+	}
+
+	incrementalFrontier := Frontier{}
 
 	for nPeers := 1; nPeers <= maxPeers; nPeers += 1 {
-		λ := make([]PrivateKey, nPeers)
-		for i := range λ {
-			λ[i] = DHKeyGen()
-		}
-
+		λ := Λ[:nPeers]
 		tree := CreateTree(λ)
 		if tree.Size != nPeers {
 			t.Fatalf("Wrong tree size [%d] != [%d]", tree.Size, nPeers)
@@ -48,6 +59,20 @@ func TestTreeAndPath(t *testing.T) {
 			if nks[0] != tree.Value {
 				t.Fatalf("Tree key computation failed for node %d [%x] != [%x]", i)
 			}
+		}
+
+		f := tree.Frontier()
+		fsize := 0
+		for _, entry := range f {
+			fsize += entry.SubtreeSize
+		}
+		if fsize != tree.Size {
+			t.Fatalf("Frontier size mismatch")
+		}
+
+		incrementalFrontier.Add(λ[nPeers-1])
+		if !reflect.DeepEqual(incrementalFrontier, f) {
+			t.Fatalf("Frontier incremental mismatch")
 		}
 	}
 }
