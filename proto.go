@@ -275,10 +275,7 @@ func (π *GroupState) DeriveStageKey() {
 		idBytes = append(idBytes, id[:]...)
 	}
 
-	oldsk := π.sk
-	π.sk = KDF(π.sk[:], π.tk[:] /*XXX, idBytes*/)
-
-	fmt.Printf("sk: %d : [%x] + [%x] -> [%x]\n", π.i, oldsk[:5], π.tk[:5], π.sk[:5])
+	π.sk = KDF(π.sk[:], π.tk[:], idBytes)
 }
 
 ///////// XXX Everything below this line is RLB addition //////////
@@ -329,7 +326,6 @@ func (π *GroupState) AddPeer(peer *Endpoint) (setup *MACMessage, add *MACMessag
 	// setup messages, not just MAC.  That's fine though, since we have the keys
 	// handy already.
 	// XXX: Ignoring errors
-	fmt.Printf("Sending from %d -> %d.\n", π.i, len(π.ID)-1)
 	sm := SetupMessage{
 		I:    len(π.ID) - 1,
 		From: π.i,

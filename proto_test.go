@@ -1,7 +1,7 @@
 package treekeys
 
 import (
-	"fmt"
+	//"fmt"
 	"reflect"
 	"testing"
 	//"time"
@@ -10,13 +10,25 @@ import (
 func TestPerformance(t *testing.T) {
 	// Uncomment for performance test
 	/*
-		for _, logNPeers := range []uint{2, 3, 7, 10, 15, 17} {
-			nPeers := (1 << logNPeers) - 1
+		maxLogPeers := uint(10)
+		maxPeers := (1 << maxLogPeers) - 1
 
-			peers := make([]*Endpoint, nPeers)
-			for i := range peers {
-				peers[i] = NewEndpoint()
-			}
+		fmt.Printf("Generating %d peers...\n", maxPeers)
+		allPeers := make([]*Endpoint, maxPeers)
+		for i := range allPeers {
+			fmt.Printf("%d\r", i)
+			allPeers[i] = NewEndpoint()
+		}
+		fmt.Printf("\n\n")
+
+		fmt.Printf("%7s %7s %7s %7s %7s %7s %7s\n",
+			"Peers", "Setup", "PSet",
+			"Upd", "PUpd", "Add", "PAdd")
+
+		// Uncomment for performance test
+		for _, logNPeers := range []uint{2, 3, 7, maxLogPeers} {
+			nPeers := (1 << logNPeers) - 1
+			peers := allPeers[:nPeers]
 
 			// Peer 0 initiates to the rest of the peers
 			beforeSetup := time.Now()
@@ -38,12 +50,25 @@ func TestPerformance(t *testing.T) {
 			π1.ProcessUpdateMessage(um)
 			afterProcessUpdate := time.Now()
 
-			fmt.Printf("%7d %7d %7d %7d %7d\n",
+			// Have peer 0 add a new peer
+			beforeAddPeer := time.Now()
+			_, am := π0.AddPeer(allPeers[nPeers+1])
+			afterAddPeer := time.Now()
+
+			// Have peer 1 accept the addition message (setup is the same as normal
+			// setup, so we don't measure it separately)
+			beforeProcessAdd := time.Now()
+			π1.ProcessAddMessage(am)
+			afterProcessAdd := time.Now()
+
+			fmt.Printf("%7d %7d %7d %7d %7d %7d %7d\n",
 				nPeers,
 				afterSetup.Sub(beforeSetup)/time.Millisecond,
 				afterProcessSetup.Sub(beforeProcessSetup)/time.Millisecond,
 				afterUpdate.Sub(beforeUpdate)/time.Millisecond,
-				afterProcessUpdate.Sub(beforeProcessUpdate)/time.Millisecond)
+				afterProcessUpdate.Sub(beforeProcessUpdate)/time.Millisecond,
+				afterAddPeer.Sub(beforeAddPeer)/time.Millisecond,
+				afterProcessAdd.Sub(beforeProcessAdd)/time.Millisecond)
 		}
 	*/
 }
@@ -166,9 +191,7 @@ func TestProtoAdd(t *testing.T) {
 
 	// Start up a peer-to-peer session
 	var sm []*MACMessage
-	fmt.Printf("=== Setup ===\n")
 	π[0], sm = peers[0].SetupGroup(peers[1:2])
-	fmt.Printf("=== ProcessSetup ===\n")
 	π[1] = peers[1].ProcessSetupMessage(sm[0])
 	if π[0].tk != π[1].tk {
 		t.Fatalf("Init tree key mismatch %x %x", π[0].tk, π[1].tk)
@@ -181,14 +204,12 @@ func TestProtoAdd(t *testing.T) {
 	}
 
 	for i := range peers {
-		fmt.Printf("===> %d\n", i)
 		if i == 0 || i == 1 {
 			continue
 		}
 
 		// Have the last-added peer add the next peer and verify that they both
 		// update to the same keys and frontiers
-		fmt.Printf("Sending from %d?\n", i-1)
 		sm, am := π[i-1].AddPeer(peers[i])
 		π[i] = peers[i].ProcessSetupMessage(sm)
 		if π[i-1].tk != π[i].tk {
@@ -207,8 +228,6 @@ func TestProtoAdd(t *testing.T) {
 			if j >= i-1 {
 				continue
 			}
-
-			fmt.Printf("Adding at %d\n", j)
 
 			π[j].ProcessAddMessage(am)
 			if π[i-1].tk != π[j].tk {
