@@ -1,46 +1,86 @@
 package treekeys
 
 import (
-	"fmt"
+	//"fmt"
+	"reflect"
 	"testing"
-	"time"
+	//"time"
 )
 
 func TestPerformance(t *testing.T) {
-	for _, logNPeers := range []uint{2, 3, 7, 10, 15, 17} {
-		nPeers := (1 << logNPeers) - 1
+	// Uncomment for performance test
+	/*
+		for _, logNPeers := range []uint{2, 3, 7, 10, 15, 17} {
+			nPeers := (1 << logNPeers) - 1
 
-		peers := make([]*Endpoint, nPeers)
-		for i := range peers {
-			peers[i] = NewEndpoint()
+			peers := make([]*Endpoint, nPeers)
+			for i := range peers {
+				peers[i] = NewEndpoint()
+			}
+
+			// Peer 0 initiates to the rest of the peers
+			beforeSetup := time.Now()
+			π0, sm := peers[0].SetupGroup(peers[1:])
+			afterSetup := time.Now()
+
+			// Have peer 1 accept the setup message
+			beforeProcessSetup := time.Now()
+			π1 := peers[1].ProcessSetupMessage(sm[0])
+			afterProcessSetup := time.Now()
+
+			// Have peer 0 update its key
+			beforeUpdate := time.Now()
+			um := π0.UpdateKey()
+			afterUpdate := time.Now()
+
+			// Have peer 1 accept the update message
+			beforeProcessUpdate := time.Now()
+			π1.ProcessUpdateMessage(um)
+			afterProcessUpdate := time.Now()
+
+			fmt.Printf("%7d %7d %7d %7d %7d\n",
+				nPeers,
+				afterSetup.Sub(beforeSetup)/time.Millisecond,
+				afterProcessSetup.Sub(beforeProcessSetup)/time.Millisecond,
+				afterUpdate.Sub(beforeUpdate)/time.Millisecond,
+				afterProcessUpdate.Sub(beforeProcessUpdate)/time.Millisecond)
 		}
+	*/
+}
 
-		// Peer 0 initiates to the rest of the peers
-		beforeSetup := time.Now()
-		π0, sm := peers[0].SetupGroup(peers[1:])
-		afterSetup := time.Now()
+func TestProtoMAC(t *testing.T) {
+	key := []byte{0, 1, 2, 3}
 
-		// Have peer 1 accept the setup message
-		beforeProcessSetup := time.Now()
-		π1 := peers[1].ProcessSetupMessage(sm[0])
-		afterProcessSetup := time.Now()
+	// TODO Populate some fields
+	sm := &SetupMessage{}
+	msm, err := NewMACMessage(key, sm)
+	if err != nil {
+		t.Fatalf("Setup MAC", err)
+	}
 
-		// Have peer 0 update its key
-		beforeUpdate := time.Now()
-		um := π0.UpdateKey()
-		afterUpdate := time.Now()
+	smsm, err := msm.ToSetupMessage()
+	if err != nil {
+		t.Fatalf("Setup Verify", err)
+	}
 
-		// Have peer 1 accept the update message
-		beforeProcessUpdate := time.Now()
-		π1.ProcessUpdateMessage(um)
-		afterProcessUpdate := time.Now()
+	if !reflect.DeepEqual(sm, smsm) {
+		t.Fatalf("Setup Mismatch [%+v] [%+v]", sm, smsm)
+	}
 
-		fmt.Printf("%7d %7d %7d %7d %7d\n",
-			nPeers,
-			afterSetup.Sub(beforeSetup)/time.Millisecond,
-			afterProcessSetup.Sub(beforeProcessSetup)/time.Millisecond,
-			afterUpdate.Sub(beforeUpdate)/time.Millisecond,
-			afterProcessUpdate.Sub(beforeProcessUpdate)/time.Millisecond)
+	// TODO Populate some fields
+	um := &UpdateMessage{}
+	mum, err := NewMACMessage(key, um)
+	if err != nil {
+		t.Fatalf("Setup MAC", err)
+	}
+
+	umum, err := mum.ToUpdateMessage()
+	if err != nil {
+		t.Fatalf("Setup Verify", err)
+	}
+
+	if !reflect.DeepEqual(um, umum) {
+		t.Fatalf("Setup Mismatch [%+v] [%+v]", um, umum)
 	}
 }
 
@@ -82,7 +122,7 @@ func TestProtoUpdate(t *testing.T) {
 
 	// Setup
 	π := make([]*GroupState, nPeers)
-	var sm []SetupMessage
+	var sm []*MACMessage
 	π[0], sm = peers[0].SetupGroup(peers[1:])
 	for i := range peers {
 		if i == 0 {
