@@ -210,18 +210,18 @@ func (π *GroupState) UpdateKey() *MACMessage {
 // starting from the leaves.  They actually start from the root, so we need to
 // count down from the root, instead of starting with the height and
 // decrementing to the right place.
-func IndexToUpdate(h, d, i, j int) int {
+func IndexToUpdate(d, n, i, j int) int {
 	if i == j {
 		panic(fmt.Sprintf("Equal indices passed to IndexToUpdate [%d] [%d]", i, j))
 	}
 
-	pow2h1 := (1 << (uint(h-d) - 1))
+	m := pow2(n)
 
 	switch {
-	case (i < pow2h1) && (j < pow2h1):
-		return IndexToUpdate(h, d+1, i, j)
-	case (i >= pow2h1) && (j >= pow2h1):
-		return IndexToUpdate(h, d+1, i-pow2h1, j-pow2h1)
+	case i < m && j < m:
+		return IndexToUpdate(d+1, m, i, j)
+	case i >= m && j >= m:
+		return IndexToUpdate(d+1, n-m, i-m, j-m)
 	}
 
 	return d
@@ -235,8 +235,7 @@ func (π *GroupState) ProcessUpdateMessage(macmsg *MACMessage) {
 	// XXX Ignoring error
 	msg, _ := macmsg.ToUpdateMessage()
 
-	h := ceillog2(len(π.ID))
-	d := IndexToUpdate(h, 0, π.i, msg.J)
+	d := IndexToUpdate(0, len(π.ID), π.i, msg.J)
 
 	π.P[d] = msg.U[d]
 	nks := PathNodeKeys(π.λ, π.P)
