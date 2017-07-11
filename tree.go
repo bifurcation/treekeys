@@ -8,9 +8,6 @@ package treekeys
 
 // Tree Management functions
 
-type PrivateKey [32]byte
-type GroupElement [32]byte
-
 type TreeNode struct {
 	Left  *TreeNode
 	Right *TreeNode

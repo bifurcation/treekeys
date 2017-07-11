@@ -2,11 +2,13 @@ package treekeys
 
 import (
 	//"fmt"
+	"reflect"
 	"testing"
 	//"time"
 )
 
 func TestPerformance(t *testing.T) {
+	// Uncomment for performance test
 	/*
 		for _, logNPeers := range []uint{2, 3, 7, 10, 15, 17} {
 			nPeers := (1 << logNPeers) - 1
@@ -44,6 +46,42 @@ func TestPerformance(t *testing.T) {
 				afterProcessUpdate.Sub(beforeProcessUpdate)/time.Millisecond)
 		}
 	*/
+}
+
+func TestProtoMAC(t *testing.T) {
+	key := []byte{0, 1, 2, 3}
+
+	// TODO Populate some fields
+	sm := &SetupMessage{}
+	msm, err := NewMACMessage(key, sm)
+	if err != nil {
+		t.Fatalf("Setup MAC", err)
+	}
+
+	smsm, err := msm.ToSetupMessage()
+	if err != nil {
+		t.Fatalf("Setup Verify", err)
+	}
+
+	if !reflect.DeepEqual(sm, smsm) {
+		t.Fatalf("Setup Mismatch [%+v] [%+v]", sm, smsm)
+	}
+
+	// TODO Populate some fields
+	um := &UpdateMessage{}
+	mum, err := NewMACMessage(key, um)
+	if err != nil {
+		t.Fatalf("Setup MAC", err)
+	}
+
+	umum, err := mum.ToUpdateMessage()
+	if err != nil {
+		t.Fatalf("Setup Verify", err)
+	}
+
+	if !reflect.DeepEqual(um, umum) {
+		t.Fatalf("Setup Mismatch [%+v] [%+v]", um, umum)
+	}
 }
 
 func TestProtoSetup(t *testing.T) {
@@ -84,7 +122,7 @@ func TestProtoUpdate(t *testing.T) {
 
 	// Setup
 	π := make([]*GroupState, nPeers)
-	var sm []SetupMessage
+	var sm []*MACMessage
 	π[0], sm = peers[0].SetupGroup(peers[1:])
 	for i := range peers {
 		if i == 0 {

@@ -1,6 +1,7 @@
 package treekeys
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -35,6 +36,56 @@ func (e Endpoint) Identity() GroupElement {
 
 /////
 
+type SetupMessage struct {
+	I  int
+	ID []GroupElement
+	EK GroupElement
+	Ks GroupElement
+	P  []GroupElement
+}
+
+type UpdateMessage struct {
+	J int
+	U []GroupElement
+}
+
+type MACMessage struct {
+	// XXX Should probably have an indicator of message type that is covered by the MAC
+	Message []byte
+	MAC     []byte
+}
+
+func NewMACMessage(key []byte, msg interface{}) (*MACMessage, error) {
+	var err error
+	macmsg := &MACMessage{}
+
+	macmsg.Message, err = json.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	macmsg.MAC = MAC(key[:], macmsg.Message)
+	return macmsg, nil
+}
+
+func (macmsg MACMessage) Verify(key []byte) bool {
+	return VerifyMAC(key, macmsg.Message, macmsg.MAC)
+}
+
+func (macmsg MACMessage) ToSetupMessage() (*SetupMessage, error) {
+	var msg SetupMessage
+	err := json.Unmarshal(macmsg.Message, &msg)
+	return &msg, err
+}
+
+func (macmsg MACMessage) ToUpdateMessage() (*UpdateMessage, error) {
+	var msg UpdateMessage
+	err := json.Unmarshal(macmsg.Message, &msg)
+	return &msg, err
+}
+
+/////
+
 type GroupState struct {
 	i  int
 	ik PrivateKey
@@ -45,15 +96,7 @@ type GroupState struct {
 	sk PrivateKey
 }
 
-type SetupMessage struct {
-	i  int
-	ID []GroupElement
-	EK GroupElement
-	Ks GroupElement
-	P  []GroupElement
-}
-
-func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []SetupMessage) {
+func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []*MACMessage) {
 	nPeers := len(peers)
 
 	π := &GroupState{}
@@ -75,16 +118,18 @@ func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []SetupMessage) {
 	T := CreateTree(append([]PrivateKey{π.λ}, λ...))
 	π.ID = append([]GroupElement{PK(π.ik)}, IK...)
 
-	m := make([]SetupMessage, nPeers)
+	m := make([]*MACMessage, nPeers)
 	for i := range peers {
-		m[i] = SetupMessage{
-			i:  i + 1,
+		sm := SetupMessage{
+			I:  i + 1,
 			ID: π.ID,
 			EK: EK[i],
 			Ks: PK(ks),
 			P:  Copath(T, i+1),
 		}
-		// XXX Not computing MAC because it will never be verified
+
+		// XXX Ignoring error
+		m[i], _ = NewMACMessage(λ[i][:], sm)
 	}
 
 	π.tk = T.Value
@@ -97,14 +142,13 @@ func (e *Endpoint) SetupGroup(peers []*Endpoint) (*GroupState, []SetupMessage) {
 	return π, m
 }
 
-func (e *Endpoint) ProcessSetupMessage(msg SetupMessage) *GroupState {
-	// XXX Paper doesn't specify verifying MAC
-	// XXX Paper doesn't specify doing anything with i
+func (e *Endpoint) ProcessSetupMessage(macmsg *MACMessage) *GroupState {
 	π := &GroupState{}
 	π.ik = e.identityKey
-	π.i = msg.i
-	π.ID = msg.ID
-	π.P = msg.P
+
+	// XXX Paper doesn't specify verifying MAC
+	// XXX Ignoring error
+	msg, _ := macmsg.ToSetupMessage()
 
 	ek, ok := e.preKeys[msg.EK]
 	if !ok {
@@ -112,8 +156,17 @@ func (e *Endpoint) ProcessSetupMessage(msg SetupMessage) *GroupState {
 		panic("Unknown PreKey")
 	}
 
-	// XXX PK conversion differs from paper
 	π.λ = ι(PK(KeyExchange(false, π.ik, msg.ID[0], ek, msg.Ks)))
+	if !macmsg.Verify(π.λ[:]) {
+		panic("Bad MAC")
+	}
+
+	// XXX Paper doesn't specify doing anything with i
+	π.i = msg.I
+	π.ID = msg.ID
+	π.P = msg.P
+
+	// XXX PK conversion differs from paper
 	nks := PathNodeKeys(π.λ, π.P)
 	π.tk = nks[0]
 
@@ -124,19 +177,14 @@ func (e *Endpoint) ProcessSetupMessage(msg SetupMessage) *GroupState {
 	return π
 }
 
-type UpdateMessage struct {
-	j int
-	U []GroupElement
-}
-
-func (π *GroupState) UpdateKey() UpdateMessage {
+func (π *GroupState) UpdateKey() *MACMessage {
 	π.λ = DHKeyGen()
 	nks := PathNodeKeys(π.λ, π.P)
 
 	// XXX Not computing MAC because it will never be verified
 	// XXX π.sk is used as the MAC key but never computed
-	m := UpdateMessage{
-		j: π.i,
+	um := UpdateMessage{
+		J: π.i,
 		U: make([]GroupElement, len(π.P)),
 	}
 	for i, nk := range nks {
@@ -144,15 +192,17 @@ func (π *GroupState) UpdateKey() UpdateMessage {
 			continue
 		}
 
-		m.U[i-1] = PK(nk)
+		um.U[i-1] = PK(nk)
 	}
 
-	π.tk = nks[0]
+	// XXX Ignoring error
+	mm, _ := NewMACMessage(π.sk[:], um)
 
-	// XXX Assuming this happens every time the tree key changes?
+	// XXX Assuming stage key update happens every time the tree key changes?
+	π.tk = nks[0]
 	π.DeriveStageKey()
 
-	return m
+	return mm
 }
 
 // XXX This is completely upside-down compared to the paper.  I think the paper
@@ -177,8 +227,15 @@ func IndexToUpdate(d, n, i, j int) int {
 	return d
 }
 
-func (π *GroupState) ProcessUpdateMessage(msg UpdateMessage) {
-	d := IndexToUpdate(0, len(π.ID), π.i, msg.j)
+func (π *GroupState) ProcessUpdateMessage(macmsg *MACMessage) {
+	if !macmsg.Verify(π.sk[:]) {
+		panic("Bad MAC")
+	}
+
+	// XXX Ignoring error
+	msg, _ := macmsg.ToUpdateMessage()
+
+	d := IndexToUpdate(0, len(π.ID), π.i, msg.J)
 
 	π.P[d] = msg.U[d]
 	nks := PathNodeKeys(π.λ, π.P)
