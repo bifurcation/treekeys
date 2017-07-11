@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-/*
 // Use for detailed debugging as needed
+/*
 func trunc(b [32]byte) []byte {
-	return b[:4]
+	return b[:5]
 }
 
 func printTree(t *TreeNode, depth int) {
@@ -72,7 +72,7 @@ func TestTreeAndPath(t *testing.T) {
 
 		incrementalFrontier.Add(λ[nPeers-1])
 		if !reflect.DeepEqual(incrementalFrontier, f) {
-			t.Fatalf("Frontier incremental mismatch")
+			t.Fatalf("Frontier incremental mismatch at tree size %d", nPeers)
 		}
 	}
 }

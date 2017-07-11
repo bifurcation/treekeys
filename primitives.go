@@ -9,14 +9,6 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
-func ceillog2(n int) int {
-	l := 0
-	for n > (1 << uint(l)) {
-		l += 1
-	}
-	return l
-}
-
 func isPow2(n int) bool {
 	for n&0x01 == 0 {
 		n >>= 1
@@ -72,7 +64,7 @@ func KDF(vals ...[]byte) (out PrivateKey) {
 	for _, val := range vals {
 		h.Write(val[:])
 	}
-	h.Sum(out[:])
+	copy(out[:], h.Sum(nil))
 	return
 }
 

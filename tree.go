@@ -75,7 +75,7 @@ func (f *Frontier) Add(λ PrivateKey) {
 		}
 
 		n -= 1
-		priv := ι(Exp(nextToLast.Value, priv))
+		priv = ι(Exp(nextToLast.Value, priv))
 		val := PK(priv)
 
 		(*f)[n-1] = FrontierEntry{
@@ -85,6 +85,14 @@ func (f *Frontier) Add(λ PrivateKey) {
 	}
 
 	(*f) = (*f)[:n]
+}
+
+func (f Frontier) ToPath() []GroupElement {
+	P := make([]GroupElement, len(f))
+	for i, entry := range f {
+		P[i] = entry.Value
+	}
+	return P
 }
 
 func (T *TreeNode) Frontier() Frontier {
